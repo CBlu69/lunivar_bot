@@ -1,20 +1,24 @@
 import os
+import re
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
-# Environment variables
 TOKEN = os.environ.get("BOT_TOKEN")
 ADMIN_ID_STR = os.environ.get("ADMIN_ID")
 
 if not TOKEN or not ADMIN_ID_STR:
-    raise ValueError("BOT_TOKEN and ADMIN_ID must be set in environment variables")
+    raise ValueError("BOT_TOKEN and ADMIN_ID must be set")
 
 ADMIN_ID = int(ADMIN_ID_STR)
 
+def escape_markdown(text):
+    """فرار دادن کاراکترهای خاص مارک‌داون"""
+    escape_chars = r'_*[]()~`>#+-=|{}.!'
+    return re.sub(f'([{re.escape(escape_chars)}])', r'\\\1', str(text))
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "🔒 *پیام ناشناس*\n\n"
-        "پیامت رو اینجا بنویس تا به صورت کاملاً ناشناس ارسال بشه.",
+        "🔒 *پیام ناشناس*\n\nپیامت رو اینجا بنویس تا ناشناس ارسال بشه.",
         parse_mode='Markdown'
     )
 
@@ -22,11 +26,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
     
+    # پاسخ ادمین
     if user.id == ADMIN_ID and 'reply_to' in context.user_data:
         try:
             await context.bot.send_message(
                 chat_id=context.user_data['reply_to'],
-                text=f"📩 *پاسخ:*\n\n{text}",
+                text=f"📩 *پاسخ:*\n\n{escape_markdown(text)}",
                 parse_mode='Markdown'
             )
             await update.message.reply_text("✅ ارسال شد")
@@ -35,12 +40,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطا: {e}")
         return
     
+    # پیام ناشناس
+    safe_name = escape_markdown(user.first_name or '')
+    safe_last = escape_markdown(user.last_name or '')
+    safe_username = escape_markdown(user.username or 'ندارد')
+    safe_text = escape_markdown(text)
+    
     msg = (
         f"📨 *پیام جدید*\n\n"
         f"🆔: `{user.id}`\n"
-        f"👤: {user.first_name} {user.last_name or ''}\n"
-        f"📎: @{user.username or 'ندارد'}\n\n"
-        f"💬: {text}"
+        f"👤: {safe_name} {safe_last}\n"
+        f"📎: @{safe_username}\n\n"
+        f"💬: {safe_text}"
     )
     
     keyboard = [[
@@ -94,7 +105,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     
     print("🤖 ربات شروع به کار کرد...")
-    app.run_polling()
+    app.run_polling(drop_pending_updates=True)  # ← اینو اضافه کردم
 
 if __name__ == "__main__":
     main()
