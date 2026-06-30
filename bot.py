@@ -10,9 +10,7 @@ if not TOKEN or not ADMIN_ID_STR:
     raise ValueError("BOT_TOKEN and ADMIN_ID must be set")
 
 ADMIN_ID = int(ADMIN_ID_STR)
-
-# دیکشنری چت‌ها
-chat_sessions = {}
+print(f"✅ ADMIN_ID is set to: {ADMIN_ID}")  # برای debug
 
 def escape_markdown(text):
     escape_chars = r'_*[]()~`>#+-=|{}.!'
@@ -20,70 +18,49 @@ def escape_markdown(text):
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    print(f"🔔 /start from user: {user.id} - {user.first_name}")
     
+    await update.message.reply_text(
+        "🔒 *پیام ناشناس*\n\nپیامت رو اینجا بنویس تا ناشناس ارسال بشه.",
+        parse_mode='Markdown'
+    )
+    
+    # اگر خود ادمین باشه
     if user.id == ADMIN_ID:
-        await update.message.reply_text(
-            "👑 *پنل ادمین*\n\nپیام‌های کاربران اینجا میاد.\nبرای پاسخ روی ✍️ کلیک کن.",
-            parse_mode='Markdown'
-        )
-    else:
-        await update.message.reply_text(
-            "🔒 *پیام ناشناس*\n\nپیامت رو بنویس تا ناشناس ارسال بشه.",
-            parse_mode='Markdown'
-        )
+        await update.message.reply_text("👑 *خوش اومدی ادمین!*", parse_mode='Markdown')
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text
     
-    # ==============================
-    # ادمین در حال چت با کاربر
-    # ==============================
-    if user.id == ADMIN_ID:
-        if user.id in chat_sessions:
-            target_user_id = chat_sessions[user.id]
-            
-            # دکمه پایان چت
-            keyboard = [[
-                InlineKeyboardButton("🚫 پایان چت", callback_data=f"endchat_{target_user_id}")
-            ]]
-            
-            try:
-                await context.bot.send_message(
-                    chat_id=target_user_id,
-                    text=f"📩 *پاسخ ادمین:*\n\n{escape_markdown(text)}",
-                    parse_mode='Markdown'
-                )
-                await update.message.reply_text(
-                    f"✅ پیام به `{target_user_id}` ارسال شد.",
-                    parse_mode='Markdown',
-                    reply_markup=InlineKeyboardMarkup(keyboard)
-                )
-            except Exception as e:
-                await update.message.reply_text(f"❌ خطا: {e}")
-                # پایان خودکار چت
-                if user.id in chat_sessions:
-                    del chat_sessions[user.id]
-                if target_user_id in chat_sessions:
-                    del chat_sessions[target_user_id]
-            return
-        
-        # ادمین در حال چت نیست
-        await update.message.reply_text("⚠️ روی دکمه ✍️ *پاسخ* کلیک کن تا چت شروع بشه.", parse_mode='Markdown')
+    print(f"📩 پیام از {user.id}: {text}")  # debug
+    print(f"👑 ADMIN_ID: {ADMIN_ID}")  # debug
+    print(f"🔍 Is admin? {user.id == ADMIN_ID}")  # debug
+    
+    # پاسخ ادمین
+    if user.id == ADMIN_ID and 'reply_to' in context.user_data:
+        try:
+            await context.bot.send_message(
+                chat_id=context.user_data['reply_to'],
+                text=f"📩 *پاسخ:*\n\n{escape_markdown(text)}",
+                parse_mode='Markdown'
+            )
+            await update.message.reply_text("✅ ارسال شد")
+            del context.user_data['reply_to']
+            print("✅ پاسخ ارسال شد")
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {e}")
+            print(f"❌ خطا در پاسخ: {e}")
         return
     
-    # ==============================
-    # کاربر ناشناس
-    # ==============================
+    # پیام ناشناس از کاربر عادی
     safe_name = escape_markdown(user.first_name or '')
     safe_last = escape_markdown(user.last_name or '')
     safe_username = escape_markdown(user.username or 'ندارد')
     safe_text = escape_markdown(text)
     
-    status = "💬 *در حال چت*" if user.id in chat_sessions else "📨 *پیام جدید*"
-    
     msg = (
-        f"{status}\n\n"
+        f"📨 *پیام جدید*\n\n"
         f"🆔: `{user.id}`\n"
         f"👤: {safe_name} {safe_last}\n"
         f"📎: @{safe_username}\n\n"
@@ -102,100 +79,45 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
+        print(f"✅ پیام به ادمین ({ADMIN_ID}) ارسال شد")
+        
         await update.message.reply_text("✅ پیامت ارسال شد")
     except Exception as e:
-        print(f"❌ خطا: {e}")
-        await update.message.reply_text("❌ خطا در ارسال.")
+        print(f"❌ خطا در ارسال به ادمین: {e}")
+        await update.message.reply_text("❌ خطا در ارسال پیام. لطفاً دوباره تلاش کن.")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    data = query.data.split('_')
-    action = data[0]
-    uid = int(data[1]) if len(data) > 1 else None
+    action, uid = query.data.split('_')
+    uid = int(uid)
     
-    # ==============================
-    # پایان چت
-    # ==============================
-    if action == "endchat":
-        target_user_id = uid
-        admin_id = query.from_user.id
-        
-        if admin_id in chat_sessions:
-            del chat_sessions[admin_id]
-        if target_user_id in chat_sessions:
-            del chat_sessions[target_user_id]
-        
-        await query.edit_message_text(
-            query.message.text_markdown + "\n\n🚫 *چت پایان یافت*",
-            parse_mode='Markdown'
-        )
-        
-        try:
-            await context.bot.send_message(
-                target_user_id,
-                "🚫 *چت با ادمین پایان یافت.*\n\nبرای شروع دوباره، پیام جدید بفرست.",
-                parse_mode='Markdown'
-            )
-        except:
-            pass
-        return
-    
-    # ==============================
-    # خوانده شد
-    # ==============================
     if action == "read":
         await query.edit_message_text(
             query.message.text_markdown + "\n\n✅ *خوانده شد*",
             parse_mode='Markdown'
         )
         try:
-            await context.bot.send_message(uid, "📬 پیامت خونده شد.")
+            await context.bot.send_message(uid, "📬 پیامت خونده شد")
         except:
             pass
-        return
     
-    # ==============================
-    # شروع چت (پاسخ)
-    # ==============================
-    if action == "reply":
-        admin_id = query.from_user.id
-        
-        # فعال کردن چت دو طرفه
-        chat_sessions[admin_id] = uid
-        chat_sessions[uid] = True
-        
-        # ادیت پیام قبلی
+    elif action == "reply":
+        context.user_data['reply_to'] = uid
         await query.edit_message_text(
-            query.message.text_markdown + "\n\n✍️ *در حال چت...*",
+            query.message.text_markdown + "\n\n✍️ *در حال پاسخ...*",
             parse_mode='Markdown'
         )
-        
-        # پیام به ادمین با دکمه پایان
-        keyboard = [[
-            InlineKeyboardButton("🚫 پایان چت", callback_data=f"endchat_{uid}")
-        ]]
-        
         await context.bot.send_message(
-            chat_id=admin_id,
-            text=f"✍️ *چت با کاربر* `{uid}` *فعال شد.*\n\nهر پیامی بدی میره به کاربر.",
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(keyboard)
+            ADMIN_ID,
+            f"✍️ پاسخ به کاربر `{uid}`:",
+            parse_mode='Markdown'
         )
-        
-        # اطلاع به کاربر
-        try:
-            await context.bot.send_message(
-                chat_id=uid,
-                text="💬 *ادمین بهت پاسخ داد!*\n\nهر پیامی بدی مستقیم میره به ادمین.\nمنتظر پاسخ باش...",
-                parse_mode='Markdown'
-            )
-        except:
-            pass
 
 def main():
     print(f"🤖 Starting bot with ADMIN_ID: {ADMIN_ID}")
+    print(f"🔑 Token starts with: {TOKEN[:10]}...")
     
     app = Application.builder().token(TOKEN).build()
     
