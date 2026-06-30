@@ -28,7 +28,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     
     if user.id == ADMIN_ID:
-        await update.message.reply_text("👑 *خوش اومدی ادمین!*", parse_mode='Markdown')
+        await update.message.reply_text("👑 *خوش اومدی آرزو*", parse_mode='Markdown')
 
 def get_user_info(user):
     """اطلاعات کاربر رو برای نمایش آماده می‌کنه"""
