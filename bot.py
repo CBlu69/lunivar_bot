@@ -22,8 +22,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await update.message.reply_text(
         "🔒 *پیام ناشناس*\n\n"
-        "پیامت رو اینجا بنویس تا ناشناس ارسال بشه.\n"
-        "میتونی عکس، فیلم، گیف، استیکر یا ویس هم بفرستی 📸🎥🎵",
+        "پیامت رو اینجا بنویس تا ناشناس ارسال بشه.",
         parse_mode='Markdown'
     )
     
@@ -174,7 +173,7 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
         elif update.message.sticker:
             await context.bot.send_message(
                 chat_id=user_id,
-                text="📩 *پاسخ* (استیکر):",
+                text="📩 *پاسخ:*",
                 parse_mode='Markdown'
             )
             await context.bot.send_sticker(
