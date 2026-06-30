@@ -1,18 +1,9 @@
 import os
-import asyncio
-import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
-# گرفتن تنظیمات از Railway
-TOKEN = os.getenv("8774654907:AAGSnrwx9gRJQI4EZx1G1VGRDD0wavwzKrM")
-ADMIN_ID = int(os.getenv("5406539706"))
-
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-user_messages = {}
-user_ids = {}
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID"))  # ← این خط درست شد
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
@@ -22,109 +13,83 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
 
-async def handle_anonymous_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    message_text = update.message.text
+    text = update.message.text
     
-    admin_text = (
-        f"📨 *پیام ناشناس جدید*\n\n"
-        f"👤 *اطلاعات فرستنده:*\n"
+    if user.id == ADMIN_ID and 'reply_to' in context.user_data:
+        try:
+            await context.bot.send_message(
+                chat_id=context.user_data['reply_to'],
+                text=f"📩 *پاسخ ادمین:*\n\n{text}",
+                parse_mode='Markdown'
+            )
+            await update.message.reply_text("✅ پاسخ ارسال شد")
+            del context.user_data['reply_to']
+        except Exception as e:
+            await update.message.reply_text(f"❌ خطا: {e}")
+        return
+    
+    msg = (
+        f"📨 *پیام جدید*\n\n"
         f"🆔 آیدی: `{user.id}`\n"
         f"👤 نام: {user.first_name} {user.last_name or ''}\n"
-        f"📎 یوزرنیم: @{user.username if user.username else 'ندارد'}\n\n"
-        f"📝 *متن پیام:*\n{message_text}"
+        f"📎 یوزرنیم: @{user.username or 'ندارد'}\n\n"
+        f"💬 *متن:*\n{text}"
     )
     
-    keyboard = [
-        [
-            InlineKeyboardButton("✍️ پاسخ", callback_data=f"reply_{user.id}"),
-            InlineKeyboardButton("✅ خوندم", callback_data=f"read_{user.id}")
-        ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    keyboard = [[
+        InlineKeyboardButton("✍️ پاسخ", callback_data=f"reply_{user.id}"),
+        InlineKeyboardButton("✅ خوندم", callback_data=f"read_{user.id}")
+    ]]
     
     await context.bot.send_message(
         chat_id=ADMIN_ID,
-        text=admin_text,
+        text=msg,
         parse_mode='Markdown',
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     
-    await update.message.reply_text("✅ پیامت ارسال شد! پاسخ رو همینجا دریافت می‌کنی.")
+    await update.message.reply_text("✅ پیامت ارسال شد")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    action, user_id = query.data.split('_')
-    user_id = int(user_id)
+    action, uid = query.data.split('_')
+    uid = int(uid)
     
     if action == "read":
-        await query.edit_message_reply_markup(reply_markup=None)
-        original_text = query.message.text
         await query.edit_message_text(
-            f"{original_text}\n\n✅ *خوانده شد*",
+            query.message.text_markdown + "\n\n✅ *خوانده شد*",
             parse_mode='Markdown'
         )
-        
         try:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="📬 پیامت توسط ادمین خونده شد."
-            )
+            await context.bot.send_message(uid, "📬 پیامت خونده شد")
         except:
             pass
     
     elif action == "reply":
-        context.user_data['replying_to'] = user_id
-        await query.edit_message_reply_markup(reply_markup=None)
-        
+        context.user_data['reply_to'] = uid
+        await query.edit_message_text(
+            query.message.text_markdown + "\n\n✍️ *در حال پاسخ...*",
+            parse_mode='Markdown'
+        )
         await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=f"✍️ پاسخ خودت رو به کاربر `{user_id}` بنویس:",
+            ADMIN_ID,
+            f"✍️ پاسخ به کاربر `{uid}` رو بنویس:",
             parse_mode='Markdown'
         )
 
-async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_user.id != ADMIN_ID:
-        return
+def main():
+    app = Application.builder().token(TOKEN).build()
     
-    if 'replying_to' in context.user_data:
-        target_user_id = context.user_data['replying_to']
-        
-        try:
-            await context.bot.send_message(
-                chat_id=target_user_id,
-                text=f"📩 *پاسخ ادمین:*\n\n{update.message.text}",
-                parse_mode='Markdown'
-            )
-            await update.message.reply_text("✅ پاسخ با موفقیت ارسال شد!")
-            del context.user_data['replying_to']
-        except Exception as e:
-            await update.message.reply_text(f"❌ خطا در ارسال پاسخ: {e}")
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    
+    print("🤖 ربات شروع به کار کرد...")
+    app.run_polling()
 
-async def main():
-    application = Application.builder().token(TOKEN).build()
-    
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & filters.User(user_id=ADMIN_ID), handle_reply))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.User(user_id=ADMIN_ID), handle_anonymous_message))
-    
-    print("🤖 ربات ناشناس آماده به کاره...")
-    await application.initialize()
-    await application.start()
-    await application.updater.start_polling()
-    
-    try:
-        while True:
-            await asyncio.sleep(1)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        await application.updater.stop()
-        await application.stop()
-        await application.shutdown()
-
-if __name__ == '__main__':
-    asyncio.run(main())
+if __name__ == "__main__":
+    main()
