@@ -1,23 +1,16 @@
+import os
 import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 
-# ============================================
-# ⚙️ تنظیمات
-# ============================================
-TOKEN = "8774654907:AAGSnrwx9gRJQI4EZx1G1VGRDD0wavwzKrM"         
-ADMIN_ID = 5406539706
+# گرفتن تنظیمات از Railway
+TOKEN = os.getenv("8774654907:AAGSnrwx9gRJQI4EZx1G1VGRDD0wavwzKrM")
+ADMIN_ID = int(os.getenv("5406539706"))
 
-# ⚙️ پروکسی رایگان MTProto (بدون نیاز به VPN)
-# اگه این کار نکرد، آدرس‌های دیگه رو امتحان کن
-PROXY_URL = "http://t.me/proxy?server=162.55.239.11&port=443&secret=ee662233ee662233ee662233ee662233"
-
-# فعال‌سازی لاگ
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# دیکشنری‌های ذخیره اطلاعات
 user_messages = {}
 user_ids = {}
 
@@ -32,13 +25,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_anonymous_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     message_text = update.message.text
-    
-    user_info = {
-        'user_id': user.id,
-        'username': user.username,
-        'first_name': user.first_name,
-        'last_name': user.last_name
-    }
     
     admin_text = (
         f"📨 *پیام ناشناس جدید*\n\n"
@@ -57,15 +43,12 @@ async def handle_anonymous_message(update: Update, context: ContextTypes.DEFAULT
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    admin_message = await context.bot.send_message(
+    await context.bot.send_message(
         chat_id=ADMIN_ID,
         text=admin_text,
         parse_mode='Markdown',
         reply_markup=reply_markup
     )
-    
-    user_messages[admin_message.message_id] = user_info
-    user_ids[user.id] = admin_message.message_id
     
     await update.message.reply_text("✅ پیامت ارسال شد! پاسخ رو همینجا دریافت می‌کنی.")
 
@@ -121,7 +104,6 @@ async def handle_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(f"❌ خطا در ارسال پاسخ: {e}")
 
 async def main():
-    # راه‌اندازی بدون پروکسی - مستقیم وصل میشه
     application = Application.builder().token(TOKEN).build()
     
     application.add_handler(CommandHandler("start", start))
