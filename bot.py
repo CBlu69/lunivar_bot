@@ -9,8 +9,9 @@ ADMIN_ID_STR = os.environ.get("ADMIN_ID")
 if not TOKEN or not ADMIN_ID_STR:
     raise ValueError("BOT_TOKEN and ADMIN_ID must be set")
 
-ADMIN_ID = int(ADMIN_ID_STR)
-print(f"✅ ADMIN_ID is set to: {ADMIN_ID}")
+# تبدیل به لیست ادمین‌ها (با کاما جدا کن)
+ADMIN_IDS = [int(id.strip()) for id in ADMIN_ID_STR.split(',')]
+print(f"✅ ADMIN_IDs are set to: {ADMIN_IDS}")
 
 def escape_markdown(text):
     escape_chars = r'_*[]()~`>#+-=|{}.!'
@@ -26,8 +27,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode='Markdown'
     )
     
-    if user.id == ADMIN_ID:
-        await update.message.reply_text("👑 *خوش اومدی آرزو*", parse_mode='Markdown')
+    if user.id in ADMIN_IDS:
+        await update.message.reply_text("👑 *خوش اومدی ادمین*", parse_mode='Markdown')
 
 def get_user_info(user):
     """اطلاعات کاربر رو برای نمایش آماده می‌کنه"""
@@ -41,12 +42,73 @@ def get_user_info(user):
         f"📎: @{safe_username}"
     )
 
+async def send_to_all_admins(context, **kwargs):
+    """ارسال پیام به همه ادمین‌ها"""
+    for admin_id in ADMIN_IDS:
+        try:
+            if kwargs.get('media_type') == "استیکر":
+                # اول پیام متنی
+                await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=kwargs['text'],
+                    parse_mode='Markdown',
+                    reply_markup=kwargs.get('reply_markup')
+                )
+                # بعد استیکر
+                await context.bot.send_sticker(
+                    chat_id=admin_id,
+                    sticker=kwargs['sticker_id']
+                )
+            elif kwargs.get('media_type') == "عکس":
+                await context.bot.send_photo(
+                    chat_id=admin_id,
+                    photo=kwargs['file_id'],
+                    caption=kwargs.get('text', ''),
+                    parse_mode='Markdown',
+                    reply_markup=kwargs.get('reply_markup')
+                )
+            elif kwargs.get('media_type') == "فیلم":
+                await context.bot.send_video(
+                    chat_id=admin_id,
+                    video=kwargs['file_id'],
+                    caption=kwargs.get('text', ''),
+                    parse_mode='Markdown',
+                    reply_markup=kwargs.get('reply_markup')
+                )
+            elif kwargs.get('media_type') == "گیف":
+                await context.bot.send_animation(
+                    chat_id=admin_id,
+                    animation=kwargs['file_id'],
+                    caption=kwargs.get('text', ''),
+                    parse_mode='Markdown',
+                    reply_markup=kwargs.get('reply_markup')
+                )
+            elif kwargs.get('media_type') == "ویس":
+                await context.bot.send_voice(
+                    chat_id=admin_id,
+                    voice=kwargs['file_id'],
+                    caption=kwargs.get('text', ''),
+                    parse_mode='Markdown',
+                    reply_markup=kwargs.get('reply_markup')
+                )
+            elif kwargs.get('media_type') == "سند":
+                await context.bot.send_document(
+                    chat_id=admin_id,
+                    document=kwargs['file_id'],
+                    caption=kwargs.get('text', ''),
+                    parse_mode='Markdown',
+                    reply_markup=kwargs.get('reply_markup')
+                )
+            print(f"✅ به ادمین {admin_id} ارسال شد")
+        except Exception as e:
+            print(f"❌ خطا در ارسال به ادمین {admin_id}: {e}")
+
 async def send_media_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, media_type: str):
-    """ارسال مدیا به ادمین"""
+    """ارسال مدیا به همه ادمین‌ها"""
     user = update.effective_user
     
     # اگر ادمین باشه و در حال پاسخ دادن
-    if user.id == ADMIN_ID and 'reply_to' in context.user_data:
+    if user.id in ADMIN_IDS and 'reply_to' in context.user_data:
         await handle_admin_reply(update, context)
         return
     
@@ -66,64 +128,53 @@ async def send_media_to_admin(update: Update, context: ContextTypes.DEFAULT_TYPE
     try:
         # ارسال بر اساس نوع مدیا
         if media_type == "عکس" and update.message.photo:
-            await context.bot.send_photo(
-                chat_id=ADMIN_ID,
-                photo=update.message.photo[-1].file_id,
-                caption=msg,
-                parse_mode='Markdown',
+            await send_to_all_admins(context, 
+                media_type="عکس",
+                file_id=update.message.photo[-1].file_id,
+                text=msg,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         elif media_type == "فیلم" and update.message.video:
-            await context.bot.send_video(
-                chat_id=ADMIN_ID,
-                video=update.message.video.file_id,
-                caption=msg,
-                parse_mode='Markdown',
+            await send_to_all_admins(context,
+                media_type="فیلم",
+                file_id=update.message.video.file_id,
+                text=msg,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         elif media_type == "گیف" and update.message.animation:
-            await context.bot.send_animation(
-                chat_id=ADMIN_ID,
-                animation=update.message.animation.file_id,
-                caption=msg,
-                parse_mode='Markdown',
+            await send_to_all_admins(context,
+                media_type="گیف",
+                file_id=update.message.animation.file_id,
+                text=msg,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         elif media_type == "استیکر" and update.message.sticker:
-            # اول پیام رو بفرستیم
-            await context.bot.send_message(
-                chat_id=ADMIN_ID,
+            await send_to_all_admins(context,
+                media_type="استیکر",
                 text=msg,
-                parse_mode='Markdown',
+                sticker_id=update.message.sticker.file_id,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
-            # بعد استیکر رو
-            await context.bot.send_sticker(
-                chat_id=ADMIN_ID,
-                sticker=update.message.sticker.file_id
-            )
         elif media_type == "ویس" and update.message.voice:
-            await context.bot.send_voice(
-                chat_id=ADMIN_ID,
-                voice=update.message.voice.file_id,
-                caption=msg,
-                parse_mode='Markdown',
+            await send_to_all_admins(context,
+                media_type="ویس",
+                file_id=update.message.voice.file_id,
+                text=msg,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         elif media_type == "سند" and update.message.document:
-            await context.bot.send_document(
-                chat_id=ADMIN_ID,
-                document=update.message.document.file_id,
-                caption=msg,
-                parse_mode='Markdown',
+            await send_to_all_admins(context,
+                media_type="سند",
+                file_id=update.message.document.file_id,
+                text=msg,
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         
-        print(f"✅ {media_type} به ادمین ({ADMIN_ID}) ارسال شد")
+        print(f"✅ {media_type} به همه ادمین‌ها ارسال شد")
         await update.message.reply_text(f"✅ {media_type}ات ارسال شد")
         
     except Exception as e:
-        print(f"❌ خطا در ارسال {media_type} به ادمین: {e}")
+        print(f"❌ خطا در ارسال {media_type} به ادمین‌ها: {e}")
         await update.message.reply_text("❌ خطا در ارسال پیام. لطفاً دوباره تلاش کن.")
 
 async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -204,7 +255,7 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
     user = update.effective_user
     
     # اگر ادمین باشه و در حال پاسخ دادن
-    if user.id == ADMIN_ID and 'reply_to' in context.user_data:
+    if user.id in ADMIN_IDS and 'reply_to' in context.user_data:
         await handle_admin_reply(update, context)
         return
     
@@ -226,19 +277,20 @@ async def handle_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE
         InlineKeyboardButton("✅ خوندم", callback_data=f"read_{user.id}")
     ]]
     
-    try:
-        await context.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=msg,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup(keyboard)
-        )
-        print(f"✅ پیام به ادمین ({ADMIN_ID}) ارسال شد")
-        await update.message.reply_text("✅ پیامت ارسال شد")
-        
-    except Exception as e:
-        print(f"❌ خطا در ارسال به ادمین: {e}")
-        await update.message.reply_text("❌ خطا در ارسال پیام. لطفاً دوباره تلاش کن.")
+    # ارسال به همه ادمین‌ها
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=msg,
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+            print(f"✅ پیام به ادمین {admin_id} ارسال شد")
+        except Exception as e:
+            print(f"❌ خطا در ارسال به ادمین {admin_id}: {e}")
+    
+    await update.message.reply_text("✅ پیامت ارسال شد")
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -246,6 +298,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     action, uid = query.data.split('_')
     uid = int(uid)
+    
+    # چک کردن اینکه کاربر کلیک‌کننده ادمین باشه
+    if query.from_user.id not in ADMIN_IDS:
+        await query.answer("⛔ فقط ادمین می‌تونه از این دکمه‌ها استفاده کنه", show_alert=True)
+        return
     
     if action == "read":
         # اضافه کردن ✅ خونده شد به پیام
@@ -276,6 +333,62 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # آپدیت پیام اصلی
         current_text = query.message.text or query.message.caption or ""
         if current_text:
+            try:
+                if query.message.text:
+                    await query.edit_message_text(
+                        current_text + "\n\n✍️ *در حال پاسخ...*",
+                        parse_mode='Markdown'
+                    )
+                elif query.message.caption:
+                    await query.edit_message_caption(
+                        caption=current_text + "\n\n✍️ *در حال پاسخ...*",
+                        parse_mode='Markdown'
+                    )
+            except:
+                pass
+        
+        await context.bot.send_message(
+            query.from_user.id,
+            f"✍️ پاسخ به کاربر `{uid}`\n"
+            "حالا می‌تونی متن، عکس، فیلم، گیف، استیکر یا ویس بفرستی:",
+            parse_mode='Markdown'
+        )
+
+def main():
+    print(f"🤖 Starting bot with ADMIN_IDs: {ADMIN_IDS}")
+    print(f"🔑 Token starts with: {TOKEN[:10]}...")
+    
+    app = Application.builder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    
+    # هندلر برای پیام‌های متنی
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text_message))
+    
+    # هندلر برای عکس
+    app.add_handler(MessageHandler(filters.PHOTO, lambda u, c: send_media_to_admin(u, c, "عکس")))
+    
+    # هندلر برای فیلم
+    app.add_handler(MessageHandler(filters.VIDEO, lambda u, c: send_media_to_admin(u, c, "فیلم")))
+    
+    # هندلر برای گیف
+    app.add_handler(MessageHandler(filters.ANIMATION, lambda u, c: send_media_to_admin(u, c, "گیف")))
+    
+    # هندلر برای استیکر
+    app.add_handler(MessageHandler(filters.Sticker.ALL, lambda u, c: send_media_to_admin(u, c, "استیکر")))
+    
+    # هندلر برای ویس
+    app.add_handler(MessageHandler(filters.VOICE, lambda u, c: send_media_to_admin(u, c, "ویس")))
+    
+    # هندلر برای فایل/سند
+    app.add_handler(MessageHandler(filters.Document.ALL, lambda u, c: send_media_to_admin(u, c, "سند")))
+    
+    print("🤖 ربات شروع به کار کرد...")
+    app.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()text:
             try:
                 if query.message.text:
                     await query.edit_message_text(
