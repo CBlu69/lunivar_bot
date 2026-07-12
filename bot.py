@@ -21,8 +21,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     print(f"🔔 /start from user: {user.id} - {user.first_name}")
     
     await update.message.reply_text(
-        "🔒 *پیام ناشناس*\n\n"
-        "پیامت رو اینجا بنویس تا ناشناس ارسال بشه.",
+        "🔒 *پیام ناشناس*\n\nپیامت رو اینجا بنویس تا ناشناس ارسال بشه.",
         parse_mode='Markdown'
     )
     
@@ -41,7 +40,6 @@ def get_user_info(user):
     )
 
 async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """مدیریت پاسخ ادمین به کاربر"""
     user_id = context.user_data.get('reply_to')
     
     if not user_id:
@@ -49,15 +47,12 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
     
     try:
-        # پاسخ متنی
         if update.message.text:
             await context.bot.send_message(
                 chat_id=user_id,
                 text=f"📩 *پاسخ ادمین:*\n\n{escape_markdown(update.message.text)}",
                 parse_mode='Markdown'
             )
-        
-        # پاسخ با عکس
         elif update.message.photo:
             caption = update.message.caption or ""
             await context.bot.send_photo(
@@ -66,8 +61,6 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 caption=f"📩 *پاسخ ادمین:*\n\n{escape_markdown(caption)}" if caption else "📩 *پاسخ ادمین*",
                 parse_mode='Markdown' if caption else None
             )
-        
-        # پاسخ با فیلم
         elif update.message.video:
             caption = update.message.caption or ""
             await context.bot.send_video(
@@ -76,8 +69,6 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 caption=f"📩 *پاسخ ادمین:*\n\n{escape_markdown(caption)}" if caption else "📩 *پاسخ ادمین*",
                 parse_mode='Markdown' if caption else None
             )
-        
-        # پاسخ با گیف
         elif update.message.animation:
             caption = update.message.caption or ""
             await context.bot.send_animation(
@@ -86,20 +77,9 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 caption=f"📩 *پاسخ ادمین:*\n\n{escape_markdown(caption)}" if caption else "📩 *پاسخ ادمین*",
                 parse_mode='Markdown' if caption else None
             )
-        
-        # پاسخ با استیکر
         elif update.message.sticker:
-            await context.bot.send_message(
-                chat_id=user_id,
-                text="📩 *پاسخ ادمین:*",
-                parse_mode='Markdown'
-            )
-            await context.bot.send_sticker(
-                chat_id=user_id,
-                sticker=update.message.sticker.file_id
-            )
-        
-        # پاسخ با ویس
+            await context.bot.send_message(chat_id=user_id, text="📩 *پاسخ ادمین:*", parse_mode='Markdown')
+            await context.bot.send_sticker(chat_id=user_id, sticker=update.message.sticker.file_id)
         elif update.message.voice:
             caption = update.message.caption or ""
             await context.bot.send_voice(
@@ -108,8 +88,6 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 caption=f"📩 *پاسخ ادمین:*\n\n{escape_markdown(caption)}" if caption else "📩 *پاسخ ادمین (ویس)*",
                 parse_mode='Markdown' if caption else None
             )
-        
-        # پاسخ با سند
         elif update.message.document:
             caption = update.message.caption or ""
             await context.bot.send_document(
@@ -128,7 +106,6 @@ async def handle_admin_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
         print(f"❌ خطا در پاسخ: {e}")
 
 async def send_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """مدیریت پیام‌های متنی"""
     user = update.effective_user
     
     if user.id in ADMIN_IDS and context.user_data.get('reply_to'):
@@ -141,11 +118,7 @@ async def send_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_info = get_user_info(user)
     safe_text = escape_markdown(text)
     
-    msg = (
-        f"📨 *پیام جدید (متن)*\n\n"
-        f"{user_info}\n\n"
-        f"💬: {safe_text}"
-    )
+    msg = f"📨 *پیام جدید (متن)*\n\n{user_info}\n\n💬: {safe_text}"
     
     keyboard = InlineKeyboardMarkup([
         [
@@ -283,6 +256,190 @@ async def send_sticker(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     
     if user.id in ADMIN_IDS and context.user_data.get('reply_to'):
+        await handle_admin_reply(update, context)
+        return
+    
+    user_info = get_user_info(user)
+    msg = f"📨 *پیام جدید (استیکر)*\n\n{user_info}"
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✍️ پاسخ", callback_data=f"reply_{user.id}"),
+            InlineKeyboardButton("✅ خوندم", callback_data=f"read_{user.id}")
+        ]
+    ])
+    
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=msg,
+                parse_mode='Markdown',
+                reply_markup=keyboard
+            )
+            await context.bot.send_sticker(
+                chat_id=admin_id,
+                sticker=update.message.sticker.file_id
+            )
+            print(f"✅ استیکر به ادمین {admin_id} ارسال شد")
+        except Exception as e:
+            print(f"❌ خطا در ارسال استیکر به ادمین {admin_id}: {e}")
+    
+    await update.message.reply_text("✅ استیکرت ارسال شد")
+
+async def send_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    
+    if user.id in ADMIN_IDS and context.user_data.get('reply_to'):
+        await handle_admin_reply(update, context)
+        return
+    
+    user_info = get_user_info(user)
+    caption = update.message.caption or ""
+    safe_caption = escape_markdown(caption) if caption else ""
+    
+    msg = f"📨 *پیام جدید (ویس)*\n\n{user_info}"
+    if safe_caption:
+        msg += f"\n\n💬: {safe_caption}"
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✍️ پاسخ", callback_data=f"reply_{user.id}"),
+            InlineKeyboardButton("✅ خوندم", callback_data=f"read_{user.id}")
+        ]
+    ])
+    
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_voice(
+                chat_id=admin_id,
+                voice=update.message.voice.file_id,
+                caption=msg,
+                parse_mode='Markdown',
+                reply_markup=keyboard
+            )
+            print(f"✅ ویس به ادمین {admin_id} ارسال شد")
+        except Exception as e:
+            print(f"❌ خطا در ارسال ویس به ادمین {admin_id}: {e}")
+    
+    await update.message.reply_text("✅ ویست ارسال شد")
+
+async def send_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    
+    if user.id in ADMIN_IDS and context.user_data.get('reply_to'):
+        await handle_admin_reply(update, context)
+        return
+    
+    user_info = get_user_info(user)
+    caption = update.message.caption or ""
+    safe_caption = escape_markdown(caption) if caption else ""
+    
+    msg = f"📨 *پیام جدید (سند)*\n\n{user_info}"
+    if safe_caption:
+        msg += f"\n\n💬: {safe_caption}"
+    
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✍️ پاسخ", callback_data=f"reply_{user.id}"),
+            InlineKeyboardButton("✅ خوندم", callback_data=f"read_{user.id}")
+        ]
+    ])
+    
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_document(
+                chat_id=admin_id,
+                document=update.message.document.file_id,
+                caption=msg,
+                parse_mode='Markdown',
+                reply_markup=keyboard
+            )
+            print(f"✅ سند به ادمین {admin_id} ارسال شد")
+        except Exception as e:
+            print(f"❌ خطا در ارسال سند به ادمین {admin_id}: {e}")
+    
+    await update.message.reply_text("✅ سندت ارسال شد")
+
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    action, uid = query.data.split('_')
+    uid = int(uid)
+    
+    if query.from_user.id not in ADMIN_IDS:
+        await query.answer("⛔ فقط ادمین میتونه از این دکمه ها استفاده کنه", show_alert=True)
+        return
+    
+    if action == "read":
+        current_text = query.message.text or query.message.caption or ""
+        if current_text:
+            try:
+                if query.message.text:
+                    await query.edit_message_text(
+                        current_text + "\n\n✅ *خوانده شد*",
+                        parse_mode='Markdown'
+                    )
+                elif query.message.caption:
+                    await query.edit_message_caption(
+                        caption=current_text + "\n\n✅ *خوانده شد*",
+                        parse_mode='Markdown'
+                    )
+            except:
+                pass
+        
+        try:
+            await context.bot.send_message(uid, "📬 پیامت خونده شد")
+        except:
+            pass
+    
+    elif action == "reply":
+        context.user_data['reply_to'] = uid
+        
+        current_text = query.message.text or query.message.caption or ""
+        if current_text:
+            try:
+                if query.message.text:
+                    await query.edit_message_text(
+                        current_text + "\n\n✍️ *در حال پاسخ...*",
+                        parse_mode='Markdown'
+                    )
+                elif query.message.caption:
+                    await query.edit_message_caption(
+                        caption=current_text + "\n\n✍️ *در حال پاسخ...*",
+                        parse_mode='Markdown'
+                    )
+            except:
+                pass
+        
+        await context.bot.send_message(
+            query.from_user.id,
+            f"✍️ پاسخ به کاربر `{uid}`\nحالا میتونی متن، عکس، فیلم، گیف، استیکر یا ویس بفرستی:",
+            parse_mode='Markdown'
+        )
+
+def main():
+    print(f"🤖 Starting bot with ADMIN_IDs: {ADMIN_IDS}")
+    print(f"🔑 Token starts with: {TOKEN[:10]}...")
+    
+    app = Application.builder().token(TOKEN).build()
+    
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, send_text_message))
+    app.add_handler(MessageHandler(filters.PHOTO, send_photo))
+    app.add_handler(MessageHandler(filters.VIDEO, send_video))
+    app.add_handler(MessageHandler(filters.ANIMATION, send_animation))
+    app.add_handler(MessageHandler(filters.Sticker.ALL, send_sticker))
+    app.add_handler(MessageHandler(filters.VOICE, send_voice))
+    app.add_handler(MessageHandler(filters.Document.ALL, send_document))
+    
+    print("🤖 ربات شروع به کار کرد...")
+    app.run_polling(drop_pending_updates=True)
+
+if __name__ == "__main__":
+    main()):
         await handle_admin_reply(update, context)
         return
     
